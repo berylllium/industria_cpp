@@ -1,0 +1,6 @@
+[submodule "deps/simple-logger"]
+	path = deps/simple-logger
+	url = https://github.com/berylllium/simple-logger.git
+[submodule "deps/asio"]
+	path = deps/asio
+	url = https://github.com/chriskohlhoff/asio.git
