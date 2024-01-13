@@ -35,6 +35,7 @@ add_executable(industria_client
     client/platform/platform_linux.cpp
 	client/renderer/command_buffer.cpp
     client/renderer/device.cpp
+	client/renderer/fence.cpp
 	client/renderer/render_pass.cpp
     client/renderer/renderer.cpp
 	client/renderer/swapchain.cpp

@@ -4,6 +4,7 @@
 
 #include "client/platform/platform.hpp"
 #include "client/renderer/device.hpp"
+#include "client/renderer/fence.hpp"
 #include "client/renderer/renderer_platform.hpp"
 #include "client/renderer/swapchain.hpp"
 
@@ -42,6 +43,17 @@ static struct
 	Swapchain* swapchain;
 
 	std::vector<vk::Framebuffer> world_framebuffers;
+
+	std::vector<std::unique_ptr<CommandBuffer>> graphics_command_buffers;
+
+	// Sync objects.
+	std::vector<vk::Semaphore> image_available_semaphores;
+
+	std::vector<vk::Semaphore> queue_complete_semaphores;
+
+	std::vector<std::unique_ptr<Fence>> in_flight_fences;
+
+	std::vector<Fence*> images_in_flight;
 } renderer_state;
 
 bool renderer_initialize()
@@ -227,12 +239,81 @@ bool renderer_initialize()
 			renderer_state.device->logical_device.createFramebuffer(fb_ci);
 	}
 
+	// Create command buffers.
+	renderer_state.graphics_command_buffers.reserve(renderer_state.swapchain->max_frames_in_flight);
+
+	for (uint32_t i = 0; i < renderer_state.swapchain->max_frames_in_flight; i++)
+	{
+		auto cb = CommandBuffer::create(renderer_state.device, renderer_state.device->graphics_command_pool, true);
+
+		if (!cb)
+		{
+			sl::log_fatal("Failed to create command buffers");
+			return false;
+		}
+
+		renderer_state.graphics_command_buffers.push_back(std::move(cb));
+	}
+
+	// Create sync objects
+	renderer_state.image_available_semaphores.resize(renderer_state.swapchain->max_frames_in_flight);
+
+	renderer_state.queue_complete_semaphores.resize(renderer_state.swapchain->max_frames_in_flight);
+
+	renderer_state.in_flight_fences.reserve(renderer_state.swapchain->max_frames_in_flight);
+
+	for (uint32_t i = 0; i < renderer_state.swapchain->max_frames_in_flight; i++)
+	{
+		vk::SemaphoreCreateInfo semaphore_ci;
+
+		std::tie(r, renderer_state.image_available_semaphores[i]) =
+			renderer_state.device->logical_device.createSemaphore(semaphore_ci);
+
+		if (r != vk::Result::eSuccess)
+		{
+			sl::log_error("Failed to create image available semaphore.");
+			return false;
+		}
+
+		std::tie(r, renderer_state.queue_complete_semaphores[i]) =
+			renderer_state.device->logical_device.createSemaphore(semaphore_ci);
+
+		if (r != vk::Result::eSuccess)
+		{
+			sl::log_error("Failed to create queue complete semaphore.");
+			return false;
+		}
+
+		auto fence = Fence::create(renderer_state.device, true);
+
+		if (!fence)
+		{
+			sl::log_error("Failed to create fence.");
+			return false;
+		}
+
+		renderer_state.in_flight_fences.push_back(std::move(fence)); 
+	}
+
+	// Preallocate the in flight images and set them to nullptr;
+	renderer_state.images_in_flight.resize(renderer_state.swapchain->images.size(), nullptr);
+
     return true;
 }
 
 void renderer_shutdown()
 {
     vk::Result r = renderer_state.device->logical_device.waitIdle();
+
+	for (size_t i = 0; i < renderer_state.image_available_semaphores.size(); i++)
+	{
+		renderer_state.device->logical_device.destroy(renderer_state.image_available_semaphores[i]);
+		renderer_state.device->logical_device.destroy(renderer_state.queue_complete_semaphores[i]);
+	}
+
+	renderer_state.in_flight_fences.clear();
+
+	renderer_state.graphics_command_buffers.clear();
 
 	for (size_t i = 0; i < renderer_state.world_framebuffers.size(); i++)
 	{
