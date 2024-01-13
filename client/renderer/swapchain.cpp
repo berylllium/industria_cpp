@@ -19,7 +19,7 @@ std::unique_ptr<Swapchain> Swapchain::create(
 	vk::SwapchainCreateInfoKHR swap_chain_ci(
 		{},
 		out->surface,
-		out->swapchain_info.min_image_count,
+		out->swapchain_info.requested_image_count,
 		out->swapchain_info.image_format.format,
 		out->swapchain_info.image_format.colorSpace,
 		out->swapchain_info.swapchain_extent,
@@ -250,16 +250,8 @@ SwapchainInfo Swapchain::query_info(const Device* device, vk::SurfaceKHR surface
 	// Choose swap extent
 	info.swapchain_extent = swap_chain_support_info.surface_capabilities.currentExtent;
 
-	auto swap_chain_image_count = swap_chain_support_info.surface_capabilities.minImageCount + 1;
-
-	// Make sure to not exceed the maximum image count
-	if (swap_chain_image_count > swap_chain_support_info.surface_capabilities.maxImageCount &&
-		swap_chain_support_info.surface_capabilities.maxImageCount > 0)
-	{
-		swap_chain_image_count = swap_chain_support_info.surface_capabilities.maxImageCount;
-	}
-
-	info.min_image_count = swap_chain_image_count;
+    info.min_image_count = swap_chain_support_info.surface_capabilities.minImageCount;
+    info.max_image_count = swap_chain_support_info.surface_capabilities.maxImageCount;
 
 	// Check if device supports depth format
 	const uint32_t candidate_count = 3;

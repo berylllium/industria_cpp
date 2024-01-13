@@ -16,6 +16,8 @@ struct SwapchainInfo
 	vk::Format depth_format;
 
 	uint32_t min_image_count;
+	uint32_t max_image_count;
+	uint32_t requested_image_count;
 };
 
 struct Swapchain

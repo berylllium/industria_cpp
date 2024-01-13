@@ -132,6 +132,22 @@ bool renderer_initialize()
 	// Get swapchain info
 	SwapchainInfo swapchain_info = Swapchain::query_info(renderer_state.device, renderer_state.surface);
 
+	swapchain_info.requested_image_count = 3;
+
+	if (swapchain_info.max_image_count > 0 && swapchain_info.requested_image_count > swapchain_info.max_image_count)
+	{
+		sl::log_fatal("Requested swapchain image count ({}) is greater than the maximum swapchain image count supported"
+			" by the graphics card ({}).", swapchain_info.requested_image_count, swapchain_info.max_image_count);
+
+		return false;
+	}
+
+	if (swapchain_info.requested_image_count < swapchain_info.min_image_count)
+	{
+		sl::log_fatal("Requested swapchain image count ({}) is less than the minimum swapchain image count supported by"
+			" the graphics card ({}).", swapchain_info.requested_image_count, swapchain_info.min_image_count);
+	}
+
 	// Create the render passs
 	renderer_state.world_render_pass = RenderPass::create(
 		renderer_state.device,
