@@ -5,6 +5,7 @@
 #include "client/platform/platform.hpp"
 #include "client/renderer/device.hpp"
 #include "client/renderer/renderer_platform.hpp"
+#include "client/renderer/swapchain.hpp"
 
 #ifdef NDEBUG
 	static constexpr bool enable_validation_layers = false;
@@ -33,6 +34,14 @@ static struct
     vk::SurfaceKHR surface;
 
     Device* device;
+
+	// Render Passes.
+	RenderPass* world_render_pass;
+	RenderPass* ui_render_pass;
+
+	Swapchain* swapchain;
+
+	std::vector<vk::Framebuffer> world_framebuffers;
 } renderer_state;
 
 bool renderer_initialize()
@@ -119,6 +128,88 @@ bool renderer_initialize()
 		sl::log_fatal("Failed to create a logical device.");
 		return false;
 	}
+	
+	// Get swapchain info
+	SwapchainInfo swapchain_info = Swapchain::query_info(renderer_state.device, renderer_state.surface);
+
+	// Create the render passs
+	renderer_state.world_render_pass = RenderPass::create(
+		renderer_state.device,
+		swapchain_info.image_format.format,
+		swapchain_info.depth_format,
+		vector2ui { 0, 0 },
+		vector2ui { swapchain_info.swapchain_extent.width, swapchain_info.swapchain_extent.height },
+		vector4f { 0.4f, 0.5f, 0.6f, 0.0f },
+		1.0f,
+		0,
+		RenderPassClearFlagBits::COLOR_BUFFER_FLAG | RenderPassClearFlagBits::DEPTH_BUFFER_FLAG |
+			RenderPassClearFlagBits::STENCIL_BUFFER_FLAG,
+		false,
+		true
+	).release();
+
+	renderer_state.ui_render_pass = RenderPass::create(
+		renderer_state.device,
+		swapchain_info.image_format.format,
+		swapchain_info.depth_format,
+		vector2ui { 0, 0 },
+		vector2ui { swapchain_info.swapchain_extent.width, swapchain_info.swapchain_extent.height },
+		vector4f { 0.0f, 0.0f, 0.0f, 0.0f },
+		1.0f,
+		0,
+		RenderPassClearFlagBits::NONE_FLAG,
+		true,
+		false
+	).release();
+	
+	if (!renderer_state.world_render_pass)
+	{
+		sl::log_fatal("Failed to create the world render pass.");
+		return false;
+	}
+
+	if (!renderer_state.ui_render_pass)
+	{
+		sl::log_fatal("Failed to create the ui render pass.");
+		return false;
+	}
+
+	// Create the swapchain
+	renderer_state.swapchain = Swapchain::create(
+		renderer_state.device,
+		renderer_state.ui_render_pass,
+		renderer_state.surface,
+		swapchain_info
+	).release();
+
+	if (!renderer_state.swapchain)
+	{
+		sl::log_fatal("Failed to create the swapchain.");
+		return false;
+	}
+
+	// Create world framebuffers.
+	renderer_state.world_framebuffers.resize(renderer_state.swapchain->images.size());
+
+	for (size_t i = 0; i < renderer_state.swapchain->images.size(); i++)
+	{
+		std::vector<vk::ImageView> attachments = {
+			renderer_state.swapchain->image_views[i],
+			renderer_state.swapchain->depth_attachments[i]->image_view
+		};
+
+		vk::FramebufferCreateInfo fb_ci(
+			{},
+			renderer_state.world_render_pass->handle,
+			attachments,
+			renderer_get_framebuffer_size().w,
+			renderer_get_framebuffer_size().h,
+			1
+		);
+
+		std::tie(r, renderer_state.world_framebuffers[i]) =
+			renderer_state.device->logical_device.createFramebuffer(fb_ci);
+	}
 
     return true;
 }
@@ -127,6 +218,17 @@ void renderer_shutdown()
 {
     vk::Result r = renderer_state.device->logical_device.waitIdle();
 
+	for (size_t i = 0; i < renderer_state.world_framebuffers.size(); i++)
+	{
+		renderer_state.device->logical_device.destroy(renderer_state.world_framebuffers[i]);
+	}
+
+	delete renderer_state.ui_render_pass;
+
+	delete renderer_state.world_render_pass;
+
+	delete renderer_state.swapchain;
+
     delete renderer_state.device;
 
     renderer_state.vulkan_instance.destroy(renderer_state.surface);
@@ -134,6 +236,14 @@ void renderer_shutdown()
     renderer_state.vulkan_instance.destroy();
 
     sl::log_info("Successfully shut down renderer.");
+}
+
+vector2ui renderer_get_framebuffer_size()
+{
+	return vector2ui {
+		renderer_state.swapchain->swapchain_info.swapchain_extent.width,
+		renderer_state.swapchain->swapchain_info.swapchain_extent.height
+	};
 }
 
 static bool check_validation_layer_support()

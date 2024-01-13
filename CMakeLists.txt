@@ -33,8 +33,12 @@ add_executable(industria_client
     client/input.cpp
     client/main.cpp
     client/platform/platform_linux.cpp
+	client/renderer/command_buffer.cpp
     client/renderer/device.cpp
+	client/renderer/render_pass.cpp
     client/renderer/renderer.cpp
+	client/renderer/swapchain.cpp
+	client/renderer/vulkan_image.cpp
 )
 target_link_libraries(industria_client PUBLIC industria_server PUBLIC simple-logger)
 target_compile_definitions(industria_client PUBLIC VULKAN_HPP_NO_EXCEPTIONS)
