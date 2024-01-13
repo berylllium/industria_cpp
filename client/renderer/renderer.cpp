@@ -386,7 +386,7 @@ bool renderer_begin_frame()
 	return true;
 }
 
-bool vulkan_end_frame(float delta_time)
+bool renderer_end_frame()
 {
 	uint8_t current_frame = renderer_state.swapchain->current_frame;
 	CommandBuffer* command_buffer = renderer_state.graphics_command_buffers[current_frame].get();

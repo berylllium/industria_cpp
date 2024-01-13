@@ -89,7 +89,7 @@ enum EventCodes
  * - 16 unsigned 8-bit integers
  * - 16 characters
  */
-struct event_context
+struct EventContext
 {
 	union
 	{
@@ -117,7 +117,7 @@ struct event_context
  * can be found in the \ref lise_event_codes enum.
  * @param ctx The passed event context.
  */
-typedef void (*on_event_cb)(uint16_t event_code, event_context ctx);
+typedef void (*on_event_cb)(uint16_t event_code, EventContext ctx);
 
 /**
  * @brief Initializes the event subsystem.
@@ -149,7 +149,7 @@ void event_register(uint16_t event_code);
  * @param event_code The event code to fire.
  * @param ctx The ctx that gets passed to all listeners.
  */
-void event_fire(uint16_t event_code, event_context ctx);
+void event_fire(uint16_t event_code, EventContext ctx);
 
 /**
  * @brief Adds a listener to an event.

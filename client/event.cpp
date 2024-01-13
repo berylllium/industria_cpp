@@ -40,7 +40,7 @@ void event_register(uint16_t event_code)
 	registered_events.push_back(entry);
 }
 
-void event_fire(uint16_t event_code, event_context ctx)
+void event_fire(uint16_t event_code, EventContext ctx)
 {
 	for (auto& entry : registered_events)
 	{

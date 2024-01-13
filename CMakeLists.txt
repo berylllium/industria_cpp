@@ -29,6 +29,7 @@ target_link_libraries(industria_standalone_server PUBLIC industria_server PUBLIC
 
 # Add client executable.
 add_executable(industria_client
+	client/clock.cpp
     client/event.cpp
     client/input.cpp
     client/main.cpp

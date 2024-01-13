@@ -32,7 +32,7 @@ void input_process_keys(Keys key, bool down)
 	{
 		keyboard_current.keys_pressed[static_cast<int>(key)] = down;
 
-		event_context ctx = {};
+		EventContext ctx = {};
 		ctx.data.u32[0] = static_cast<uint32_t>(key);
 		event_fire(down ? EventCodes::ON_KEY_DOWN : EventCodes::ON_KEY_UP, ctx);
 	}
@@ -46,7 +46,7 @@ void input_process_button(MouseButtons button, bool down)
 		mouse_current.buttons[static_cast<int>(button)] = down;
 
 		// Fire event
-		event_context ctx = {};
+		EventContext ctx = {};
 		ctx.data.u16[0] = static_cast<uint16_t>(button);
 		event_fire(down ? EventCodes::ON_MOUSE_BUTTON_DOWN : EventCodes::ON_MOUSE_BUTTON_UP, ctx);
 	}
@@ -59,7 +59,7 @@ void input_process_mouse_move(vector2i pos)
 		mouse_current.pos = pos;
 
 		// Fire event
-		event_context ctx = {};
+		EventContext ctx = {};
 		ctx.data.i32[0] = pos.x;
 		ctx.data.i32[1] = pos.y;
 		event_fire(EventCodes::ON_MOUSE_MOVE, ctx);
@@ -71,7 +71,7 @@ void input_process_mouse_wheel(int8_t dz)
 	// No internal state to handle.
 
 	// Fire event
-	event_context ctx = {};
+	EventContext ctx = {};
 	ctx.data.i8[0] = dz;
 	event_fire(EventCodes::ON_MOUSE_WHEEL_MOVE, ctx);
 }

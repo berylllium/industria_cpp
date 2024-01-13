@@ -252,7 +252,7 @@ bool platform_poll_messages()
 				// Window resize. Also triggered by moving the window;
 				xcb_configure_notify_event_t *configure_event = (xcb_configure_notify_event_t *)event;
 
-				event_context ctx = {};
+				EventContext ctx = {};
 				ctx.data.u32[0] = configure_event->width;
 				ctx.data.u32[1] = configure_event->height;
 
@@ -265,7 +265,7 @@ bool platform_poll_messages()
 				// Window close
 				if (cm->data.data32[0] == state.wm_delete_win)
 				{
-					event_fire(EventCodes::ON_WINDOW_CLOSE, event_context {});
+					event_fire(EventCodes::ON_WINDOW_CLOSE, EventContext {});
 				}
 			} break;
 			default:
