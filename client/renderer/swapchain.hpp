@@ -66,5 +66,5 @@ struct Swapchain
 
 	bool present(vk::Semaphore render_complete_semaphore, uint32_t present_image_index);
 
-	static SwapchainInfo query_info(const Device* device, vk::SurfaceKHR surface);
+	static SwapchainInfo query_info(const Device* device, vk::SurfaceKHR surface, uint32_t requested_image_count);
 };

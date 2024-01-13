@@ -216,7 +216,7 @@ bool Swapchain::present(vk::Semaphore render_complete_semaphore, uint32_t presen
 	return true;
 }
 
-SwapchainInfo Swapchain::query_info(const Device* device, vk::SurfaceKHR surface)
+SwapchainInfo Swapchain::query_info(const Device* device, vk::SurfaceKHR surface, uint32_t requested_image_count)
 {
 	SwapchainInfo info = {};
 
@@ -252,6 +252,24 @@ SwapchainInfo Swapchain::query_info(const Device* device, vk::SurfaceKHR surface
 
     info.min_image_count = swap_chain_support_info.surface_capabilities.minImageCount;
     info.max_image_count = swap_chain_support_info.surface_capabilities.maxImageCount;
+
+	info.requested_image_count = requested_image_count;
+
+	if (info.max_image_count > 0 && info.requested_image_count > info.max_image_count)
+	{
+		sl::log_fatal("Requested swapchain image count ({}) is greater than the maximum swapchain image count supported"
+			" by the graphics card ({}).", info.requested_image_count, info.max_image_count);
+
+		return SwapchainInfo {};
+	}
+
+	if (info.requested_image_count < info.min_image_count)
+	{
+		sl::log_fatal("Requested swapchain image count ({}) is less than the minimum swapchain image count supported by"
+			" the graphics card ({}).", info.requested_image_count, info.min_image_count);
+
+		return SwapchainInfo {};
+	}
 
 	// Check if device supports depth format
 	const uint32_t candidate_count = 3;
