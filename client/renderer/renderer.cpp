@@ -1,5 +1,7 @@
 #include "client/renderer/renderer.hpp"
 
+#include <cmath>
+
 #include <simple-logger.hpp>
 
 #include "client/platform/platform.hpp"
@@ -327,8 +329,8 @@ bool renderer_begin_frame()
 	renderer_state.voxel_shader->bind(command_buffer, renderer_state.current_image_index);
 
 	command_buffer->handle.dispatch(
-		renderer_state.swapchain->swapchain_info.swapchain_extent.width,
-		renderer_state.swapchain->swapchain_info.swapchain_extent.height,
+		static_cast<uint32_t>(std::ceil(renderer_state.swapchain->swapchain_info.swapchain_extent.width / 8.0f)),
+		static_cast<uint32_t>(std::ceil(renderer_state.swapchain->swapchain_info.swapchain_extent.height / 8.0f)),
 		1
 	);
 
