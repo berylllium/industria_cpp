@@ -4,7 +4,6 @@
 
 std::unique_ptr<Swapchain> Swapchain::create(
 	const Device* device,
-	const RenderPass* render_pass,
 	vk::SurfaceKHR surface,
 	SwapchainInfo swapchain_info
 )
@@ -24,7 +23,7 @@ std::unique_ptr<Swapchain> Swapchain::create(
 		out->swapchain_info.image_format.colorSpace,
 		out->swapchain_info.swapchain_extent,
 		1,
-		vk::ImageUsageFlagBits::eColorAttachment
+		vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eStorage
 	);
 
 	auto device_queue_indices = device->queue_indices;
@@ -120,41 +119,11 @@ std::unique_ptr<Swapchain> Swapchain::create(
 		out->depth_attachments.push_back(std::move(depth_attachment));
 	}
 
-	// Create framebuffers
-	out->framebuffers.resize(out->images.size());
-
-	for (uint32_t i = 0; i < out->images.size(); i++)
-	{
-		std::vector<vk::ImageView> attachments = { out->image_views[i] };
-
-		vk::FramebufferCreateInfo fb_ci(
-			{},
-			render_pass->handle,
-			attachments,
-			swapchain_info.swapchain_extent.width,
-			swapchain_info.swapchain_extent.height,
-			1
-		);
-
-		std::tie(r, out->framebuffers[i]) = device->logical_device.createFramebuffer(fb_ci);
-
-		if (r != vk::Result::eSuccess)
-		{
-			sl::log_fatal("Failed to create swap chain frame buffers");
-			return nullptr;
-		}
-	}
-
 	return out;
 }
 
 Swapchain::~Swapchain()
 {
-	for (size_t i = 0; i < framebuffers.size(); i++)
-	{
-		device->logical_device.destroy(framebuffers[i]);
-	}
-
 	for (uint32_t i = 0; i < images.size(); i++)
 	{
 		device->logical_device.destroy(image_views[i]);
@@ -227,7 +196,7 @@ SwapchainInfo Swapchain::query_info(const Device* device, vk::SurfaceKHR surface
 
 	for (auto& surface_format : swap_chain_support_info.surface_formats)
 	{
-		if (surface_format.format == vk::Format::eB8G8R8A8Srgb &&
+		if (surface_format.format == vk::Format::eB8G8R8A8Unorm &&
 			surface_format.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear)
 		{
 			info.image_format = surface_format;

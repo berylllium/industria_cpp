@@ -7,6 +7,7 @@
 #include "client/renderer/fence.hpp"
 #include "client/renderer/renderer_platform.hpp"
 #include "client/renderer/swapchain.hpp"
+#include "client/renderer/voxel_shader.hpp"
 
 #ifdef NDEBUG
 	static constexpr bool enable_validation_layers = false;
@@ -30,6 +31,9 @@ static std::vector<const char*> device_extensions = {
 static bool check_validation_layer_support();
 static bool recreate_swapchain();
 
+static void transition_swapchain_image_to_trace(CommandBuffer* cb, uint32_t image_idx);
+static void transition_swapchain_image_to_present(CommandBuffer* cb, uint32_t image_idx);
+
 // Render state.
 static struct
 {
@@ -39,13 +43,9 @@ static struct
 
     Device* device;
 
-	// Render Passes.
-	RenderPass* world_render_pass;
-	RenderPass* ui_render_pass;
-
 	Swapchain* swapchain;
 
-	std::vector<vk::Framebuffer> world_framebuffers;
+	VoxelShader* voxel_shader;
 
 	std::vector<std::unique_ptr<CommandBuffer>> graphics_command_buffers;
 
@@ -150,52 +150,9 @@ bool renderer_initialize()
 	SwapchainInfo swapchain_info =
 		Swapchain::query_info(renderer_state.device, renderer_state.surface, REQUESTED_SWAPCHAIN_IMAGE_COUNT);
 	
-	// Create the render passs
-	renderer_state.world_render_pass = RenderPass::create(
-		renderer_state.device,
-		swapchain_info.image_format.format,
-		swapchain_info.depth_format,
-		vector2ui { 0, 0 },
-		vector2ui { swapchain_info.swapchain_extent.width, swapchain_info.swapchain_extent.height },
-		vector4f { 0.4f, 0.5f, 0.6f, 0.0f },
-		1.0f,
-		0,
-		RenderPassClearFlagBits::COLOR_BUFFER_FLAG | RenderPassClearFlagBits::DEPTH_BUFFER_FLAG |
-			RenderPassClearFlagBits::STENCIL_BUFFER_FLAG,
-		false,
-		true
-	).release();
-
-	renderer_state.ui_render_pass = RenderPass::create(
-		renderer_state.device,
-		swapchain_info.image_format.format,
-		swapchain_info.depth_format,
-		vector2ui { 0, 0 },
-		vector2ui { swapchain_info.swapchain_extent.width, swapchain_info.swapchain_extent.height },
-		vector4f { 0.0f, 0.0f, 0.0f, 0.0f },
-		1.0f,
-		0,
-		RenderPassClearFlagBits::NONE_FLAG,
-		true,
-		false
-	).release();
-	
-	if (!renderer_state.world_render_pass)
-	{
-		sl::log_fatal("Failed to create the world render pass.");
-		return false;
-	}
-
-	if (!renderer_state.ui_render_pass)
-	{
-		sl::log_fatal("Failed to create the ui render pass.");
-		return false;
-	}
-
 	// Create the swapchain
 	renderer_state.swapchain = Swapchain::create(
 		renderer_state.device,
-		renderer_state.ui_render_pass,
 		renderer_state.surface,
 		swapchain_info
 	).release();
@@ -206,28 +163,20 @@ bool renderer_initialize()
 		return false;
 	}
 
-	// Create world framebuffers.
-	renderer_state.world_framebuffers.resize(renderer_state.swapchain->images.size());
+	// Create voxel shader.
+	renderer_state.voxel_shader = VoxelShader::create(
+		renderer_state.device,
+		renderer_state.swapchain->images.size()
+	).release();
 
-	for (size_t i = 0; i < renderer_state.swapchain->images.size(); i++)
+	if (!renderer_state.voxel_shader)
 	{
-		std::vector<vk::ImageView> attachments = {
-			renderer_state.swapchain->image_views[i],
-			renderer_state.swapchain->depth_attachments[i]->image_view
-		};
-
-		vk::FramebufferCreateInfo fb_ci(
-			{},
-			renderer_state.world_render_pass->handle,
-			attachments,
-			renderer_get_framebuffer_size().w,
-			renderer_get_framebuffer_size().h,
-			1
-		);
-
-		std::tie(r, renderer_state.world_framebuffers[i]) =
-			renderer_state.device->logical_device.createFramebuffer(fb_ci);
+		sl::log_fatal("Failed to create the VoxelShader.");
+		return false;
 	}
+
+	// Update descriptors.
+	renderer_state.voxel_shader->update_color_buffer_descriptor_sets(renderer_state.swapchain);
 
 	// Create command buffers.
 	renderer_state.graphics_command_buffers.reserve(renderer_state.swapchain->max_frames_in_flight);
@@ -305,14 +254,7 @@ void renderer_shutdown()
 
 	renderer_state.graphics_command_buffers.clear();
 
-	for (size_t i = 0; i < renderer_state.world_framebuffers.size(); i++)
-	{
-		renderer_state.device->logical_device.destroy(renderer_state.world_framebuffers[i]);
-	}
-
-	delete renderer_state.ui_render_pass;
-
-	delete renderer_state.world_render_pass;
+	delete renderer_state.voxel_shader;
 
 	delete renderer_state.swapchain;
 
@@ -380,8 +322,15 @@ bool renderer_begin_frame()
 	command_buffer->handle.setViewport(0, 1, &viewport);
 	command_buffer->handle.setScissor(0, 1, &scissor);
 
-	renderer_state.world_render_pass
-		->begin(command_buffer, renderer_state.world_framebuffers[renderer_state.current_image_index]);
+	transition_swapchain_image_to_trace(command_buffer, renderer_state.current_image_index);
+
+	renderer_state.voxel_shader->bind(command_buffer, renderer_state.current_image_index);
+
+	command_buffer->handle.dispatch(
+		renderer_state.swapchain->swapchain_info.swapchain_extent.width,
+		renderer_state.swapchain->swapchain_info.swapchain_extent.height,
+		1
+	);
 
 	return true;
 }
@@ -391,13 +340,7 @@ bool renderer_end_frame()
 	uint8_t current_frame = renderer_state.swapchain->current_frame;
 	CommandBuffer* command_buffer = renderer_state.graphics_command_buffers[current_frame].get();
 
-	// End render pass.
-	renderer_state.world_render_pass->end(command_buffer);
-
-	renderer_state.ui_render_pass
-		->begin(command_buffer, renderer_state.swapchain->framebuffers[renderer_state.current_image_index]);
-
-	renderer_state.ui_render_pass->end(command_buffer);
+	transition_swapchain_image_to_present(command_buffer, renderer_state.current_image_index);
 
 	command_buffer->end();
 
@@ -520,60 +463,10 @@ static bool recreate_swapchain()
 	SwapchainInfo new_info =
 		Swapchain::query_info(renderer_state.device, renderer_state.surface, REQUESTED_SWAPCHAIN_IMAGE_COUNT);
 
-	for (size_t i = 0; i < renderer_state.world_framebuffers.size(); i++)
-	{
-		renderer_state.device->logical_device.destroy(renderer_state.world_framebuffers[i]);
-	}
-	renderer_state.world_framebuffers.clear();
-
-	delete renderer_state.ui_render_pass;
-	delete renderer_state.world_render_pass;
 	delete renderer_state.swapchain;
-
-	renderer_state.world_render_pass = RenderPass::create(
-		renderer_state.device,
-		new_info.image_format.format,
-		new_info.depth_format,
-		vector2ui { 0, 0 },
-		vector2ui { new_info.swapchain_extent.width, new_info.swapchain_extent.height },
-		vector4f { 0.4f, 0.5f, 0.6f, 0.0f },
-		1.0f,
-		0,
-		RenderPassClearFlagBits::COLOR_BUFFER_FLAG | RenderPassClearFlagBits::DEPTH_BUFFER_FLAG |
-			RenderPassClearFlagBits::STENCIL_BUFFER_FLAG,
-		false,
-		true
-	).release();
-
-	renderer_state.ui_render_pass = RenderPass::create(
-		renderer_state.device,
-		new_info.image_format.format,
-		new_info.depth_format,
-		vector2ui { 0, 0 },
-		vector2ui { new_info.swapchain_extent.width, new_info.swapchain_extent.height },
-		vector4f { 0.0f, 0.0f, 0.0f, 0.0f },
-		1.0f,
-		0,
-		RenderPassClearFlagBits::NONE_FLAG,
-		true,
-		false
-	).release();
-
-	if (!renderer_state.world_render_pass)
-	{
-		sl::log_fatal("Failed to recreate the world render pass.");
-		return false;
-	}
-
-	if (!renderer_state.ui_render_pass)
-	{
-		sl::log_fatal("Failed to recreate the ui render pass.");
-		return false;
-	}
 
 	renderer_state.swapchain = Swapchain::create(
 		renderer_state.device,
-		renderer_state.ui_render_pass,
 		renderer_state.surface,
 		new_info
 	).release();
@@ -584,36 +477,68 @@ static bool recreate_swapchain()
 		return false;
 	}
 
-	// World framebuffers.
-	size_t swapchain_image_count = renderer_state.swapchain->images.size();
-
-	renderer_state.world_framebuffers.resize(swapchain_image_count);
-
-	for (size_t i = 0; i < swapchain_image_count; i++)
-	{
-		std::vector<vk::ImageView> attachments = {
-			renderer_state.swapchain->image_views[i],
-			renderer_state.swapchain->depth_attachments[i]->image_view
-		};
-
-		vk::FramebufferCreateInfo fb_ci(
-			{},
-			renderer_state.world_render_pass->handle,
-			attachments,
-			renderer_get_framebuffer_size().w,
-			renderer_get_framebuffer_size().h,
-			1
-		);
-
-		std::tie(r, renderer_state.world_framebuffers[i]) =
-			renderer_state.device->logical_device.createFramebuffer(fb_ci);
-
-		if (r != vk::Result::eSuccess)
-		{
-			sl::log_error("Failed to recreate world frame buffers.");
-			return false;
-		}
-	}
+	// Update shaders.
+	renderer_state.voxel_shader->update_color_buffer_descriptor_sets(renderer_state.swapchain);
 
 	return true;
+}
+
+static void transition_swapchain_image_to_trace(CommandBuffer* cb, uint32_t image_idx)
+{
+	vk::ImageSubresourceRange access;
+	access.aspectMask = vk::ImageAspectFlagBits::eColor;
+	access.baseMipLevel = 0;
+	access.levelCount = 1;
+	access.baseArrayLayer = 0;
+	access.layerCount = 1;
+
+	vk::ImageMemoryBarrier barrier(
+		vk::AccessFlagBits::eNoneKHR,
+		vk::AccessFlagBits::eMemoryWrite,
+		vk::ImageLayout::eUndefined,
+		vk::ImageLayout::eGeneral,
+		VK_QUEUE_FAMILY_IGNORED,
+		VK_QUEUE_FAMILY_IGNORED,
+		renderer_state.swapchain->images[image_idx],
+		access
+	);
+
+	cb->handle.pipelineBarrier(
+		vk::PipelineStageFlagBits::eTopOfPipe,
+		vk::PipelineStageFlagBits::eComputeShader,
+		{},
+		0, nullptr,
+		0, nullptr,
+		1, &barrier
+	);
+}
+
+static void transition_swapchain_image_to_present(CommandBuffer* cb, uint32_t image_idx)
+{
+	vk::ImageSubresourceRange access;
+	access.aspectMask = vk::ImageAspectFlagBits::eColor;
+	access.baseMipLevel = 0;
+	access.levelCount = 1;
+	access.baseArrayLayer = 0;
+	access.layerCount = 1;
+
+	vk::ImageMemoryBarrier barrier(
+		vk::AccessFlagBits::eMemoryWrite,
+		vk::AccessFlagBits::eNoneKHR,
+		vk::ImageLayout::eGeneral,
+		vk::ImageLayout::ePresentSrcKHR,
+		VK_QUEUE_FAMILY_IGNORED,
+		VK_QUEUE_FAMILY_IGNORED,
+		renderer_state.swapchain->images[image_idx],
+		access
+	);
+
+	cb->handle.pipelineBarrier(
+		vk::PipelineStageFlagBits::eComputeShader,
+		vk::PipelineStageFlagBits::eBottomOfPipe,
+		{},
+		0, nullptr,
+		0, nullptr,
+		1, &barrier
+	);
 }

@@ -37,9 +37,12 @@ add_executable(industria_client
 	client/renderer/command_buffer.cpp
     client/renderer/device.cpp
 	client/renderer/fence.cpp
+	client/renderer/pipeline.cpp
 	client/renderer/render_pass.cpp
     client/renderer/renderer.cpp
+	client/renderer/shader_stage.cpp
 	client/renderer/swapchain.cpp
+	client/renderer/voxel_shader.cpp
 	client/renderer/vulkan_image.cpp
 )
 target_link_libraries(industria_client PUBLIC industria_server PUBLIC simple-logger)

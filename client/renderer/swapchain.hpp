@@ -37,8 +37,6 @@ struct Swapchain
 	vk::Format depth_format;
 	std::vector<std::unique_ptr<VulkanImage>> depth_attachments;
 
-	std::vector<vk::Framebuffer> framebuffers;
-
 	bool swapchain_out_of_date = false;
 
 	vk::SurfaceKHR surface;
@@ -53,7 +51,6 @@ struct Swapchain
 
 	static std::unique_ptr<Swapchain> create(
 		const Device* device,
-		const RenderPass* render_pass,
 		vk::SurfaceKHR surface,
 		SwapchainInfo swapchain_info
 	);
