@@ -12,75 +12,65 @@ set(CMAKE_CXX_STANDARD 20)
 find_package(Vulkan REQUIRED)
 
 # Include root directory.
-include_directories(.)
+include_directories(src/)
 
 # Include simple logger subdirectory.
 add_subdirectory(deps/simple-logger)
 
-# Add server ""shared"" library.
-set(SERVER_SOURCES
-    network/net_message.cpp
-)
-list(TRANSFORM SERVER_SOURCES PREPEND "server/")
-
-add_library(industria_server STATIC ${SERVER_SOURCES})
-target_include_directories(industria_server PUBLIC deps/asio/asio/include PUBLIC simple-logger)
-
-# Add server standalone executable.
-add_executable(industria_standalone_server server/main.cpp)
-target_link_libraries(industria_standalone_server PUBLIC industria_server PUBLIC simple-logger)
-
 # Add client executable.
-add_executable(industria_client
-	client/clock.cpp
-    client/event.cpp
-    client/input.cpp
-    client/main.cpp
-    client/platform/platform_linux.cpp
-	client/renderer/command_buffer.cpp
-    client/renderer/device.cpp
-	client/renderer/fence.cpp
-	client/renderer/pipeline.cpp
-	client/renderer/render_pass.cpp
-    client/renderer/renderer.cpp
-	client/renderer/shader_stage.cpp
-	client/renderer/swapchain.cpp
-	client/renderer/voxel_shader.cpp
-	client/renderer/vulkan_image.cpp
+add_executable(industria
+    src/clock.cpp
+    src/event.cpp
+    src/input.cpp
+    src/main.cpp
+    src/platform/platform_linux.cpp
+    src/platform/platform_windows.cpp
+    src/renderer/command_buffer.cpp
+    src/renderer/device.cpp
+    src/renderer/fence.cpp
+    src/renderer/pipeline.cpp
+    src/renderer/render_pass.cpp
+    src/renderer/renderer.cpp
+    src/renderer/shader_stage.cpp
+    src/renderer/swapchain.cpp
+    src/renderer/voxel_shader.cpp
+    src/renderer/vulkan_image.cpp
+	src/server/network/net_message.cpp
 )
-target_link_libraries(industria_client PUBLIC industria_server PUBLIC Vulkan::Vulkan PUBLIC simple-logger)
-target_compile_definitions(industria_client PUBLIC VULKAN_HPP_NO_EXCEPTIONS)
+target_link_libraries(industria PUBLIC Vulkan::Vulkan PUBLIC simple-logger)
+target_include_directories(industria PUBLIC deps/asio/asio/include)
+target_compile_definitions(industria PUBLIC VULKAN_HPP_NO_EXCEPTIONS)
 
 if (WIN32)
-	target_compile_definitions(industria_client PRIVATE I_ISWIN)
+    target_compile_definitions(industria PRIVATE I_ISWIN)
 
-	message(STATUS "Generating client build files specifically for windows.")
+    message(STATUS "Generating client build files specifically for windows.")
 
-	# Create symlink to assets folder in build path
-	if(NOT EXISTS "${CMAKE_BINARY_DIR}/assets")
-		message(STATUS "Creating symlink for assets.")
-	
-		file(TO_NATIVE_PATH "${CMAKE_BINARY_DIR}/assets" SYM_SHADER_LINK)
-		file(TO_NATIVE_PATH "${CMAKE_CURRENT_LIST_DIR}/assets" SYM_SHADER_TARGET)
-	
-		execute_process(
-			COMMAND cmd.exe /c mklink /J "${SYM_SHADER_LINK}" "${SYM_SHADER_TARGET}"
-		)
-	endif()
+    # Create symlink to assets folder in build path
+    if(NOT EXISTS "${CMAKE_BINARY_DIR}/assets")
+    	message(STATUS "Creating symlink for assets.")
+    
+    	file(TO_NATIVE_PATH "${CMAKE_BINARY_DIR}/assets" SYM_SHADER_LINK)
+    	file(TO_NATIVE_PATH "${CMAKE_CURRENT_LIST_DIR}/assets" SYM_SHADER_TARGET)
+    
+    	execute_process(
+    		COMMAND cmd.exe /c mklink /J "${SYM_SHADER_LINK}" "${SYM_SHADER_TARGET}"
+    	)
+    endif()
 
 endif(WIN32)
 if (UNIX)
-	target_compile_definitions(industria_client PRIVATE I_ISLINUX)
+    target_compile_definitions(industria PRIVATE I_ISLINUX)
 
-	message(STATUS "Generating build files specifically for linux.")
+    message(STATUS "Generating build files specifically for linux.")
 
-	# Create symlink to assets folder in build path
-	if(NOT EXISTS "${CMAKE_BINARY_DIR}/assets")
-		message(STATUS "Creating symlink for assets.")
-	
-		execute_process(
-			COMMAND ln -s ${CMAKE_CURRENT_LIST_DIR}/assets ${CMAKE_BINARY_DIR}/assets
-		)
-	endif()
+    # Create symlink to assets folder in build path
+    if(NOT EXISTS "${CMAKE_BINARY_DIR}/assets")
+    	message(STATUS "Creating symlink for assets.")
+    
+    	execute_process(
+    		COMMAND ln -s ${CMAKE_CURRENT_LIST_DIR}/assets ${CMAKE_BINARY_DIR}/assets
+    	)
+    endif()
 
 endif (UNIX)
