@@ -36,6 +36,7 @@ add_executable(industria
     src/renderer/voxel_shader.cpp
     src/renderer/vulkan_image.cpp
 	src/server/network/net_message.cpp
+    src/voxel/voxel_octree.cpp
 )
 target_link_libraries(industria PUBLIC Vulkan::Vulkan PUBLIC simple-logger)
 target_include_directories(industria PUBLIC deps/asio/asio/include)
