@@ -1,5 +1,7 @@
+#include "handler/voxel_handler.hpp"
 #include "platform/platform.hpp"
 #include "renderer/renderer.hpp"
+#include "voxel/voxel_grid.hpp"
 #include "clock.hpp"
 #include "event.hpp"
 #include "input.hpp"
@@ -14,6 +16,8 @@ static struct
 
     Clock delta_clock;
     double delta_time;
+
+    VoxelGrid test_grid;
 } client_state;
 
 bool client_initialize();
@@ -63,6 +67,14 @@ bool client_initialize()
     }
 
     event_add_listener(EventCodes::ON_WINDOW_CLOSE, on_window_close);
+
+    voxel_handler_register_voxel("sand", Voxel { vector4f { 1.0f, 0.98f, 0.725f, 1.0f } } );
+    voxel_handler_register_voxel("grass", Voxel { vector4f { 0.459f, 0.741f, 0.392f, 1.0f } } );
+
+    client_state.test_grid = std::move(VoxelGrid::create(4, 0.1f).value());
+
+    client_state.test_grid.set_voxel({0, 0, 0}, *voxel_handler_get_voxel_index("sand"));
+    client_state.test_grid.set_voxel({1, 0, 0}, *voxel_handler_get_voxel_index("grass"));
 
     client_state.delta_clock.reset();
 
@@ -133,6 +145,8 @@ void client_shutdown()
     renderer_shutdown();
     platform_shutdown();
     event_shutdown();
+
+    sl::log_info("Successfully shut down all systems.");
 }
 
 void on_window_close(uint16_t event_code, EventContext ctx)

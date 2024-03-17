@@ -12,15 +12,63 @@ template <arithmetic A> bool operator == (const vector3<A>& l, const vector3<A>&
 template<arithmetic A>
 struct vector3
 {
-    union { A x, r; };
-    union { A y, g; };
-	union { A z, b; };
+    union { A x, r = 0; };
+    union { A y, g = 0; };
+    union { A z, b = 0; };
 
     friend bool operator ==<> (const vector3<A>& l, const vector3<A>& r);
 };
 
-struct vector3i : public vector3<int> {};
+template<arithmetic A>
+vector3<A> operator - (const vector3<A>& l, const vector3<A>& r)
+{
+    return vector3<A> {
+        l.x - r.x,
+        l.y - r.y,
+        l.z - r.z
+    };
+}
 
-struct vector3f : public vector3<float> {};
+template<arithmetic A>
+vector3<A> operator + (const vector3<A>& l, const vector3<A>& r)
+{
+    return vector3<A> {
+        l.x + r.x,
+        l.y + r.y,
+        l.z + r.z
+    };
+}
 
-struct vector3d : public vector3<double> {};
+template<arithmetic A>
+vector3<A> operator * (A l, const vector3<A>& r)
+{
+    return vector3<A> {
+        l * r.x,
+        l * r.y,
+        l * r.z
+    };
+}
+
+template<arithmetic A>
+vector3<A> operator / (const vector3<A>& l, A r)
+{
+    return vector3<A> {
+        l.x / r,
+        l.y / r,
+        l.z / r
+    };
+}
+
+template<arithmetic A>
+vector3<A> operator % (const vector3<A>& l, A r)
+{
+    return vector3<A> {
+        l.x % r,
+        l.y % r,
+        l.z % r
+    };
+}
+
+typedef vector3<int> vector3i;
+typedef vector3<float> vector3f;
+typedef vector3<double> vector3d;
